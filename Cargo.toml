@@ -29,7 +29,7 @@ reqwest = { version = "0.12.22", default-features = false, features = [
     "charset",
     "http2",
 ] }
-tower-sessions = { version = "0.14.0", features = ["private", "signed"] }
+tower-sessions = "0.14.0"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

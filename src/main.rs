@@ -1,17 +1,12 @@
 use auth::load_openid_config;
 use axum::{
-    Form, Router, ServiceExt,
-    extract::{Path, Request, State, rejection::FormRejection},
-    http::StatusCode,
-    response::{IntoResponse, Redirect},
+    Router, ServiceExt,
+    extract::Request,
     routing::{delete, get, post},
 };
 use models::{
-    Uuid, get_database,
+    get_database,
     oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT},
-    repositories::album::{
-        create_album, delete_album, empty_album, get_album_by_id, list_albums, update_album,
-    },
     session::SeaSessionBackend,
     state::{AppConfig, AppState},
 };
@@ -19,95 +14,17 @@ use reqwest::Url;
 use std::env::var;
 use tokio::net::TcpListener;
 use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
-use tower_sessions::{Expiry, Session, SessionManagerLayer, cookie::time::Duration};
+use tower_sessions::{Expiry, SessionManagerLayer, cookie::time::Duration};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
-use views::{AlbumView, IndexPage};
 
-use crate::axum_auth::session_user;
+use crate::controllers::{
+    album::{album_create, album_delete, album_details, album_list, album_update},
+    home,
+};
 
 mod auth;
 mod axum_auth;
-
-#[axum_macros::debug_handler]
-async fn home(State(state): State<AppState>) -> impl IntoResponse {
-    state.db.ping().await.ok();
-    IndexPage {
-        name: format!("Running on port {}", state.config.port),
-    }
-}
-
-#[axum_macros::debug_handler]
-async fn album_details(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<impl IntoResponse, Redirect> {
-    let album = get_album_by_id(&state.db, &id)
-        .await
-        .map_err(|_| Redirect::to("/album"))?
-        .ok_or_else(|| Redirect::to("/album"))?;
-
-    Ok(AlbumView {
-        album: album.into(),
-        albums: list_albums(&state.db).await.unwrap_or_default(),
-    })
-}
-
-#[axum_macros::debug_handler]
-async fn album_list(
-    session: Session,
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let user = session_user(&session).await;
-    log::info!("Listing albums for session: {:?}", user.is_some());
-    let albums = list_albums(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(AlbumView {
-        album: empty_album(),
-        albums,
-    })
-}
-
-#[axum_macros::debug_handler]
-async fn album_create(
-    State(state): State<AppState>,
-    album: Result<Form<serde_json::Value>, FormRejection>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let Form(form) = album
-        .inspect_err(|err| log::error!("Failed to parse album form: {err}"))
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    create_album(&state.db, form)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(Redirect::to("/album"))
-}
-
-#[axum_macros::debug_handler]
-async fn album_update(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-    album: Result<Form<serde_json::Value>, FormRejection>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let Form(form) = album.map_err(|_| StatusCode::BAD_REQUEST)?;
-    update_album(&state.db, &id, form)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(AlbumView {
-        album: empty_album(),
-        albums: list_albums(&state.db).await.unwrap_or_default(),
-    })
-}
-
-#[axum_macros::debug_handler]
-async fn album_delete(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<impl IntoResponse, StatusCode> {
-    delete_album(&state.db, &id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    Ok(Redirect::to("/album"))
-}
+mod controllers;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
