@@ -5,7 +5,7 @@ use models::{ActiveValue, Value, generated::album};
 #[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
 pub struct IndexPage {
-    pub name: String,
+    pub user: Option<models::generated::user::Model>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -13,6 +13,7 @@ pub struct IndexPage {
 pub struct AlbumView {
     pub album: album::ActiveModel,
     pub albums: Vec<album::Model>,
+    pub user: Option<models::generated::user::Model>,
 }
 
 pub(crate) fn is_value_set<T: Into<Value>>(value: &ActiveValue<T>) -> bool {
@@ -38,5 +39,26 @@ pub(crate) mod filters {
             ActiveValue::NotSet => Ok(String::new()),
             ActiveValue::Unchanged(old) => Ok(old.to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+
+    #[gtest]
+    fn renders_album_title() {
+        let album = album::ActiveModel {
+            title: ActiveValue::Set("A night at the opera".to_string()),
+            ..Default::default()
+        };
+        let value = AlbumView {
+            album,
+            albums: vec![],
+            user: None,
+        };
+        let rendered = value.render().unwrap();
+        expect_that!(rendered, contains_substring("A night at the opera"));
     }
 }

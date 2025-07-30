@@ -18,6 +18,7 @@ use crate::controllers::auth::session_user;
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_details(
+    session: Session,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, Redirect> {
@@ -25,10 +26,12 @@ pub(crate) async fn album_details(
         .await
         .map_err(|_| Redirect::to("/album"))?
         .ok_or_else(|| Redirect::to("/album"))?;
+    let user = session_user(&session).await;
 
     Ok(AlbumView {
         album: album.into(),
         albums: list_albums(&state.db).await.unwrap_or_default(),
+        user,
     })
 }
 
@@ -45,6 +48,7 @@ pub(crate) async fn album_list(
     Ok(AlbumView {
         album: empty_album(),
         albums,
+        user,
     })
 }
 
@@ -64,6 +68,7 @@ pub(crate) async fn album_create(
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_update(
+    session: Session,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     album: Result<Form<serde_json::Value>, FormRejection>,
@@ -75,6 +80,7 @@ pub(crate) async fn album_update(
     Ok(AlbumView {
         album: empty_album(),
         albums: list_albums(&state.db).await.unwrap_or_default(),
+        user: session_user(&session).await,
     })
 }
 

@@ -41,13 +41,25 @@
     {% block header %}
     <header class="tertiary-container small-elevate">
         <nav class="responsive" style="max-width: 75rem; margin: 0 auto;">
-            <button class="circle transparent">
-                <i>arrow_back</i>
+            <button class="button circle transparent" up-target="body" up-transition="fade" onclick="history.back()">
+                <i class="material-icons">arrow_back</i>
             </button>
-            <h6 class="max">Headline</h6>
-            <a class="button circle transparent" href="{{ models::oauth::OAUTH_LOGIN_ENDPOINT }}" up-follow="false">
+            <a href="/">
+                <h6>Transversal</h6>
+            </a>
+            <div class="max"></div>
+            {% if let Some(user) = user %}
+            <div>Welcome {{user.name}}</div>
+            <a class="button transparent" href="{{ models::oauth::OAUTH_LOGOUT_ENDPOINT }}" up-follow="false">
+                Logout
+                <i>logout</i>
+            </a>
+            {% else %}
+            <a class="button transparent" href="{{ models::oauth::OAUTH_LOGIN_ENDPOINT }}" up-follow="false">
+                Login
                 <i>login</i>
             </a>
+            {% endif %}
         </nav>
     </header>
     {% endblock %}

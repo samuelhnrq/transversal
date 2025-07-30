@@ -30,6 +30,8 @@ reqwest = { version = "0.12.22", default-features = false, features = [
     "http2",
 ] }
 tower-sessions = "0.14.0"
+rstest = "0.26.1"
+googletest = "0.14.2"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

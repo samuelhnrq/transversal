@@ -1,7 +1,16 @@
-{% extends "template.html" %}
+{% extends "template.html" %} {% block content %}
+<h1>Hello!</h1>
+<p>
+    Welcome to the transversal template. This page is an
+    <a href="https://askama.readthedocs.io/" target="_blank" rel="noopener noreferrer">askama</a>
+    template evaluated at compile time for <i>blazing speed</i>.
+</p>
+<p>
+    This template was built using Rust and the Axum framework. The following
+    button takes you to an example implementation of a CRUD of a single entity
+    harnessing the power of axum & unipoly to bridge the gap between Rust and SPA
+    experience.
+</p>
 
-{% block content %}
-<h1>Hello, {{ name }}!</h1>
-<p>This is a simple HTML template!.</p>
 <a href="/album" class="button">View Albums</a>
 {% endblock %}
