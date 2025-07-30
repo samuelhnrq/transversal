@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta description="A simple HTML template using BeerCSS and Unpoly">
+    <meta name="author" content="Your Name">
+    <meta name="keywords" content="HTML, BeerCSS, Unpoly, Template">
+    <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/unpoly@3.11.0/unpoly.min.js"></script>
+    <script type="module" defer src="https://cdn.jsdelivr.net/npm/beercss@3.11.33/dist/cdn/beer.min.js"></script>
+    {#
+    <script type="module" async defer
+        src="https://cdn.jsdelivr.net/npm/material-dynamic-colors@1.1.2/dist/cdn/material-dynamic-colors.min.js"></script>
+    #}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/beercss@3.11.33/dist/cdn/beer.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/unpoly@3.11.0/unpoly.min.css">
+</head>
+
+<body>
+    {% block header %}
+    <header class="tertiary-container small-elevate">
+        <nav>
+            <button class="circle transparent">
+                <i>arrow_back</i>
+            </button>
+            <h6 class="max">Headline</h6>
+            <button class="circle transparent">
+                <i>attach_file</i>
+            </button>
+            <button class="circle transparent">
+                <i>today</i>
+            </button>
+            <button class="circle transparent">
+                <i>more_vert</i>
+            </button>
+        </nav>
+    </header>
+    {% endblock %}
+    <main class="responsive">
+        {% block content %}
+        <h1>Hello, World!</h1>
+        <p>This is a simple HTML template.</p>
+        {% endblock %}
+    </main>
+</body>
+
+</html>
+
+{% macro text_field(label, name, value) %}
+
+<div class="field label fill">
+    <input id="{{ name }}_field_id" type="text" name="{{ name }}" value="{{ value | maybe }}" required
+        autocomplete="off">
+    <label for="{{ name }}_field_id">
+        {{ label }}
+    </label>
+</div>
+
+{% endmacro %}

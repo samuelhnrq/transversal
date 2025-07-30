@@ -1,0 +1,15 @@
+[package]
+name = "models"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+sea-orm = { version = "1.1.14", features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+] }
+serde = { workspace = true }
+log = { workspace = true }

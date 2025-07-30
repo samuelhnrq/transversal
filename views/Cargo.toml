@@ -1,0 +1,12 @@
+[package]
+name = "views"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+askama = "0.14.0"
+askama_web = { version = "0.14.5", features = ["axum-0.8"] }
+models = { path = "../models" }

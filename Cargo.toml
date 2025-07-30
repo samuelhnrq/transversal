@@ -1,0 +1,46 @@
+[package]
+name = "transversal"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[workspace]
+members = ["views", "models", "migration"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Samuel Silva <samuel@slva.fr>"]
+edition = "2024"
+rust-version = "1.88.0"
+publish = false
+
+[workspace.dependencies]
+tokio = { version = "1.46.1", features = ["macros", "rt-multi-thread"] }
+log = { version = "0.4.27", features = ["serde", "kv_serde"] }
+serde = "1.0.219"
+
+[dependencies]
+axum = "0.8.4"
+tokio = { workspace = true }
+log = { workspace = true, features = ["serde", "kv_serde"] }
+serde = { workspace = true }
+axum-macros = "0.5.0"
+dotenvy = "0.15.7"
+tower-http = { version = "0.6.6", features = [
+    "compression-br",
+    "decompression-br",
+    "compression-gzip",
+    "decompression-gzip",
+    "fs",
+    "trace",
+] }
+views = { path = "views" }
+models = { path = "models" }
+tracing-subscriber = { version = "0.3.19", features = [
+    "env-filter",
+    "tracing",
+    "tracing-serde",
+] }
+tracing-core = "0.1.34"

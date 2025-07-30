@@ -1,0 +1,27 @@
+{% extends "template.html" %}
+
+{% block content %}
+<p>This is a simple HTML template!.</p>
+
+{% if crate::is_value_set(&user.id) %}
+<h1>User Details for {{ user.username | maybe }}</h1>
+{% else %}
+<h1>New User</h1>
+{% endif %}
+
+<form method="post" action="/user" up-submit>
+    <input type="hidden" name="user_id" value="{{ user.id | maybe }}">
+    <legend>User Information</legend>
+    {% call text_field("Username", "username", user.username) %}
+    {% call text_field("Token", "token", user.token) %}
+
+    <button type="submit">
+        {% if crate::is_value_set(&user.id) %}
+        Update
+        {% else %}
+        Create
+        {% endif %}
+    </button>
+</form>
+
+{% endblock %}
