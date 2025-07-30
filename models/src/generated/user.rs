@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "user")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[serde(skip_deserializing)]
     pub id: Uuid,
     #[sea_orm(column_type = "Text", unique)]
     pub sid: String,
@@ -17,13 +16,22 @@ pub struct Model {
     pub name: String,
     #[sea_orm(column_name = "_created_at")]
     #[serde(skip)]
-    pub created_at: DateTime,
+    pub created_at: DateTimeWithTimeZone,
     #[sea_orm(column_name = "_updated_at")]
     #[serde(skip)]
-    pub updated_at: DateTime,
+    pub updated_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::album::Entity")]
+    Album,
+}
+
+impl Related<super::album::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Album.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

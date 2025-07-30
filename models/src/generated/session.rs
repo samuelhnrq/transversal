@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "session")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
-    #[serde(skip_deserializing)]
     pub id: String,
     #[sea_orm(column_type = "JsonBinary")]
     pub data: Json,

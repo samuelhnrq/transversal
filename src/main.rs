@@ -55,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(OAUTH_LOGOUT_ENDPOINT, get(auth::logout_handler))
         .route(OAUTH_LOGIN_ENDPOINT, get(auth::login_handler))
         .route("/", get(home))
+        .layer(middleware::from_fn(auth::load_user))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

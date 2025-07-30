@@ -1,74 +1,74 @@
 use axum::{
-    Form,
+    Extension, Form,
     extract::{Path, State, rejection::FormRejection},
     response::{IntoResponse, Redirect},
 };
 use models::{
     Uuid,
+    generated::user,
     repositories::album::{
         create_album, delete_album, empty_album, get_album_by_id, list_albums, update_album,
     },
     state::AppState,
 };
 use reqwest::StatusCode;
-use tower_sessions::Session;
+use serde_json::json;
 use views::AlbumView;
-
-use crate::controllers::auth::session_user;
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_details(
-    session: Session,
     State(state): State<AppState>,
+    Extension(user): Extension<user::Model>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, Redirect> {
-    let album = get_album_by_id(&state.db, &id)
+    let album = get_album_by_id(&state.db, &user, &id)
         .await
         .map_err(|_| Redirect::to("/album"))?
         .ok_or_else(|| Redirect::to("/album"))?;
-    let user = session_user(&session).await;
-
     Ok(AlbumView {
         album: album.into(),
-        albums: list_albums(&state.db).await.unwrap_or_default(),
-        user,
+        albums: list_albums(&state.db, &user).await.unwrap_or_default(),
+        user: Some(user),
     })
 }
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_list(
-    session: Session,
     State(state): State<AppState>,
+    Extension(user): Extension<user::Model>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let user = session_user(&session).await;
-    log::info!("Listing albums for session: {:?}", user.is_some());
-    let albums = list_albums(&state.db)
+    log::info!("Listing albums for user: {:?}", user.id);
+    let albums = list_albums(&state.db, &user)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(AlbumView {
         album: empty_album(),
         albums,
-        user,
+        user: Some(user),
     })
 }
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_create(
     State(state): State<AppState>,
+    Extension(user): Extension<user::Model>,
     album: Result<Form<serde_json::Value>, FormRejection>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let Form(form) = album
+    let Form(mut form) = album
         .inspect_err(|err| log::error!("Failed to parse album form: {err}"))
         .map_err(|_| StatusCode::BAD_REQUEST)?;
+    log::debug!("Creating album with user: {:?}", user.id);
+    form["_created_by"] = json!(user.id.to_string());
     create_album(&state.db, form)
         .await
+        .inspect_err(|err| log::error!("Failed to create album: {err}"))
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     Ok(Redirect::to("/album"))
 }
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_update(
-    session: Session,
+    Extension(user): Extension<user::Model>,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     album: Result<Form<serde_json::Value>, FormRejection>,
@@ -79,8 +79,8 @@ pub(crate) async fn album_update(
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     Ok(AlbumView {
         album: empty_album(),
-        albums: list_albums(&state.db).await.unwrap_or_default(),
-        user: session_user(&session).await,
+        albums: list_albums(&state.db, &user).await.unwrap_or_default(),
+        user: Some(user),
     })
 }
 

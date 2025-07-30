@@ -3,6 +3,8 @@ use sea_orm_migration::{
     schema::{timestamp_with_time_zone as timestamp_tz, *},
 };
 
+use crate::m20250722_152740_create_users::User;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -17,6 +19,8 @@ enum Album {
     CreatedAt,
     #[sea_orm(iden = "_updated_at")]
     UpdatedAt,
+    #[sea_orm(iden = "_created_by")]
+    CreatedBy,
 }
 
 #[async_trait::async_trait]
@@ -35,8 +39,19 @@ impl MigrationTrait for Migration {
             .col(integer(Album::Year))
             .col(timestamp_tz(Album::CreatedAt).default(Expr::current_timestamp()))
             .col(timestamp_tz(Album::UpdatedAt).default(Expr::current_timestamp()))
+            .col(uuid(Album::CreatedBy))
             .to_owned();
-        manager.create_table(table).await
+        manager.create_table(table).await?;
+        manager
+            .create_foreign_key(
+                ForeignKey::create()
+                    .name("fk_album_user")
+                    .from(Album::Table, Album::CreatedBy)
+                    .to(User::Table, User::Id)
+                    .on_delete(ForeignKeyAction::Cascade)
+                    .to_owned(),
+            )
+            .await
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

@@ -2,7 +2,8 @@ use crate::auth_utils::{
     build_redirect_url, exchange_token, from_redirect_to_token_payload, generate_auth_url,
 };
 use axum::{
-    extract::{Query, Request, State},
+    Extension,
+    extract::{Query, Request, State, rejection::ExtensionRejection},
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
 };
@@ -18,8 +19,21 @@ const USER_SESSION_KEY: &str = "user";
 const AUTH_PARAMS_KEY: &str = "auth_params";
 
 #[axum_macros::debug_middleware]
-pub(crate) async fn login_required(session: Session, request: Request, next: Next) -> Response {
-    if session_user(&session).await.is_none() {
+pub(crate) async fn load_user(session: Session, mut request: Request, next: Next) -> Response {
+    if let Some(user) = session_user(&session).await {
+        log::info!("User loaded from session injecting into extensions");
+        request.extensions_mut().insert(user);
+    }
+    next.run(request).await
+}
+
+#[axum_macros::debug_middleware]
+pub(crate) async fn login_required(
+    user: Result<Extension<user::Model>, ExtensionRejection>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if user.is_err() {
         log::warn!("Unauthorized access attempt, redirecting to homepage");
         return Redirect::to("/").into_response();
     }

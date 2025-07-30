@@ -23,6 +23,7 @@ pub(crate) async fn upsert_user(
         sid: ActiveValue::Set(new_user.sub),
         email: ActiveValue::Set(new_user.email),
         name: ActiveValue::Set(new_user.name),
+        id: ActiveValue::NotSet,
         ..Default::default()
     };
     let on_conflict = OnConflict::column(user::Column::Sid)
