@@ -26,6 +26,49 @@ impl SeaSessionBackend {
     }
 }
 
+// async fn still_valid_auth(jar: &mut SeaAuthSession, state: &AppState) -> Option<Claims> {
+//     let jwt = get_cookie_value("token", jar);
+//     if jwt.is_empty() {
+//         log::debug!("Missing auth cookie");
+//         return None;
+//     }
+//     log::debug!("Cookie found, validating");
+//     match decode::<Claims>(&jwt, &state.jwk, &build_validation()) {
+//         Ok(session) => Some(session.claims),
+//         Err(err) => {
+//             log::debug!("Token did not pass validation {:?}", err);
+//             if *err.kind() == ErrorKind::ExpiredSignature {
+//                 log::debug!("JWT is expired, attempting to refresh");
+//                 let refresh_token = get_cookie_value("refresh_token", jar);
+//                 let payload = from_refresh_to_token_payload(refresh_token);
+//                 let refreshed = exchange_token(state, &Either::Right(payload))
+//                     .await
+//                     .inspect_err(|err| log::error!("Failed to refresh token: '{:?}'", err))
+//                     .ok()?;
+//                 log::debug!("Successfully refreshed, persisting the new token");
+//                 *jar = jar
+//                     .clone()
+//                     .add(safe_cookie("token", &refreshed.access_token));
+//                 let decoded =
+//                     decode::<Claims>(&refreshed.access_token, &state.jwk, &build_validation());
+//                 return decoded
+//                     .inspect_err(|err| {
+//                         log::error!(
+//                             "Failed decoding JWT: {:?} (jwt={})",
+//                             err,
+//                             &refreshed.access_token
+//                         );
+//                     })
+//                     .map(|x| x.claims)
+//                     .ok();
+//             } else if *err.kind() == ErrorKind::InvalidAudience {
+//                 log::debug!("Invalid audience JWT: {jwt}");
+//             }
+//             None
+//         }
+//     }
+// }
+
 #[async_trait]
 impl SessionStore for SeaSessionBackend {
     async fn create(&self, record: &mut Record) -> session_store::Result<()> {
@@ -36,11 +79,11 @@ impl SessionStore for SeaSessionBackend {
             expires_at: ActiveValue::Set(convert_time(expiry_time)?),
             ..Default::default()
         };
-        new_session
-            .insert(&self.db)
-            .await
-            .map_err(|_| backend_error("Failed to insert session"))?;
-        Ok(())
+        let insert = new_session.insert(&self.db).await.map_err(|err| {
+            log::error!("Failed to insert session: {err:?}");
+            backend_error("Failed to insert session")
+        });
+        insert.map(|_| ())
     }
 
     async fn save(&self, record: &Record) -> session_store::Result<()> {
@@ -99,8 +142,6 @@ impl SessionStore for SeaSessionBackend {
         Ok(())
     }
 }
-
-pub type AuthSession = axum_login::AuthSession<SeaSessionBackend>;
 
 fn backend_error(message: &str) -> SessionStoreError {
     SessionStoreError::Backend(message.to_owned())

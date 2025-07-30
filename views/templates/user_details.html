@@ -16,16 +16,16 @@
         <thead>
             <tr>
                 <th>#</th>
-                <th>Username</th>
-                <th>Token</th>
+                <th>Sid</th>
+                <th>Email</th>
             </tr>
         </thead>
         <tbody>
             {% for user in users %}
             <tr up-follow up-href="/user/{{ user.id }}">
                 <td>{{ loop.index }}</td>
-                <td>{{ user.username }}</td>
-                <td>{{ user.token }}</td>
+                <td>{{ user.sid }}</td>
+                <td>{{ user.email }}</td>
             </tr>
             {% else %}
             <tr class="center-align">
@@ -57,8 +57,8 @@
         <input type="hidden" name="id" value="{{ user.id | maybe }}">
         {% endif %}
         <legend>User Information</legend>
-        {% call text_field("Username", "username", user.username) %}
-        {% call text_field("Token", "token", user.token) %}
+        {% call text_field("Sid", "sid", user.sid) %}
+        {% call text_field("Email", "email", user.email) %}
 
         <div class="row">
             {% if crate::is_value_set(&user.id) %}

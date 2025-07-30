@@ -13,3 +13,23 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./infra/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    environment:
+      - KC_DB=postgres
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_IMPORT=/opt/keycloak/data/import/realm-config.json
+      - KC_DB_URL=jdbc:postgresql://db:5432/keycloak
+      - KC_DB_USERNAME=postgres
+      - KC_DB_PASSWORD=postgres
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+    ports:
+      - 8080:8080
+      - 9000:9000
+    volumes: 
+      - ./infra/keycloak_config.json:/opt/keycloak/data/import/realm-config.json:ro
+    command: ["start-dev", "--import-realm"]
+    restart: unless-stopped

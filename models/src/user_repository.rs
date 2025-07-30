@@ -1,56 +1,11 @@
-use axum_login::{AuthUser, AuthnBackend};
 use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveValue, QueryOrder};
 use sea_orm::{DatabaseConnection, Order};
 use std::io::{Error as IOError, ErrorKind};
 
 use crate::generated::user;
-
-impl AuthUser for user::Model {
-    type Id = Uuid;
-
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn session_auth_hash(&self) -> &[u8] {
-        self.token.as_bytes()
-    }
-}
-
-#[derive(Clone)]
-pub struct AuthBackend {
-    db: DatabaseConnection,
-}
-
-impl AuthBackend {
-    #[must_use]
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
-    }
-}
-
-impl AuthnBackend for AuthBackend {
-    type Credentials = Uuid;
-    type User = user::Model;
-    type Error = IOError;
-
-    async fn authenticate(
-        &self,
-        creds: Self::Credentials,
-    ) -> Result<Option<Self::User>, Self::Error> {
-        let user = user::Entity::find()
-            .filter(user::Column::Id.eq(creds))
-            .one(&self.db)
-            .await
-            .map_err(IOError::other)?;
-        Ok(user)
-    }
-
-    async fn get_user(&self, user_id: &Uuid) -> Result<Option<Self::User>, Self::Error> {
-        get_user_by_id(&self.db, user_id).await
-    }
-}
+use crate::oauth::UserInfo;
 
 pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<user::Model>, IOError> {
     user::Entity::find()
@@ -77,13 +32,24 @@ pub fn empty_user() -> user::ActiveModel {
     user::ActiveModel::new()
 }
 
-pub async fn create_user(
+pub async fn upsert_user(
     db: &DatabaseConnection,
-    new_user: serde_json::Value,
+    new_user: UserInfo,
 ) -> Result<user::Model, IOError> {
-    user::ActiveModel::from_json(new_user)
-        .map_err(|_| IOError::new(ErrorKind::InvalidData, "Invalid user data"))?
-        .insert(db)
+    let mut model = user::ActiveModel {
+        ..Default::default()
+    };
+    model.sid = ActiveValue::Set(new_user.sub);
+    model.email = ActiveValue::Set(new_user.email);
+    model.name = ActiveValue::Set(new_user.name);
+    user::Entity::insert(model)
+        .on_conflict(
+            OnConflict::column(user::Column::Sid)
+                .update_column(user::Column::Email)
+                .update_column(user::Column::Name)
+                .to_owned(),
+        )
+        .exec_with_returning(db)
         .await
         .map_err(IOError::other)
 }

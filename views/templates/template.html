@@ -45,9 +45,9 @@
                 <i>arrow_back</i>
             </button>
             <h6 class="max">Headline</h6>
-            <button class="circle transparent">
-                <i>more_vert</i>
-            </button>
+            <a class="button circle transparent" href="{{ models::oauth::OAUTH_LOGIN_ENDPOINT }}" up-follow="false">
+                <i>login</i>
+            </a>
         </nav>
     </header>
     {% endblock %}

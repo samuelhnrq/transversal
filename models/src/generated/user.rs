@@ -9,9 +9,12 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[serde(skip_deserializing)]
     pub id: Uuid,
-    #[sea_orm(unique)]
-    pub username: String,
-    pub token: String,
+    #[sea_orm(column_type = "Text", unique)]
+    pub sid: String,
+    #[sea_orm(column_type = "Text", unique)]
+    pub email: String,
+    #[sea_orm(column_type = "Text")]
+    pub name: String,
     #[sea_orm(column_name = "_created_at")]
     #[serde(skip)]
     pub created_at: DateTime,

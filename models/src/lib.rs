@@ -4,8 +4,11 @@ pub use sea_orm::{ActiveValue, DatabaseConnection, Value};
 use std::io::{self, Error as IOError};
 
 pub mod generated;
+pub mod oauth;
 pub mod session;
-pub mod user;
+pub mod state;
+pub mod user_auth;
+pub mod user_repository;
 
 pub async fn get_database(db_url: &str) -> Result<DatabaseConnection, IOError> {
     log::info!("Connecting to database...");

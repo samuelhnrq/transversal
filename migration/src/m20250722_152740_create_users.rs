@@ -7,8 +7,9 @@ pub struct Migration;
 pub(crate) enum User {
     Table,
     Id,
-    Username,
-    Token,
+    Sid,
+    Name,
+    Email,
 }
 
 #[async_trait::async_trait]
@@ -18,8 +19,9 @@ impl MigrationTrait for Migration {
             .table(User::Table)
             .if_not_exists()
             .col(pk_uuid(User::Id).default(Expr::cust("uuid_generate_v1()")))
-            .col(string(User::Username).not_null().unique_key())
-            .col(string(User::Token).not_null())
+            .col(text(User::Sid).not_null().unique_key())
+            .col(text(User::Email).not_null().unique_key())
+            .col(text(User::Name).not_null())
             .to_owned();
         manager.create_table(table).await
     }

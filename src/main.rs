@@ -1,4 +1,4 @@
-use crate::model::{AppConfig, AppState};
+use auth::load_openid_config;
 use axum::{
     Form, Router, ServiceExt,
     extract::{Path, Request, State, rejection::FormRejection},
@@ -6,21 +6,26 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{delete, get, post},
 };
-use axum_login::{AuthManagerLayerBuilder, tower_sessions::SessionManagerLayer};
+use axum_login::{
+    AuthManagerLayerBuilder,
+    tower_sessions::{Expiry, SessionManagerLayer, cookie::time::Duration},
+};
 use models::{
     Uuid, get_database,
+    oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT},
     session::SeaSessionBackend,
-    user::{
-        AuthBackend, create_user, delete_user, empty_user, get_user_by_id, list_users, update_user,
-    },
+    state::{AppConfig, AppState},
+    user_auth::SeaAuthBackend,
+    user_repository::{delete_user, empty_user, get_user_by_id, list_users, update_user},
 };
+use reqwest::Url;
 use std::env::var;
 use tokio::net::TcpListener;
 use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use views::{IndexPage, UserDetailsPage};
 
-mod model;
+mod axum_auth;
 
 #[axum_macros::debug_handler]
 async fn home(State(state): State<AppState>) -> impl IntoResponse {
@@ -28,21 +33,6 @@ async fn home(State(state): State<AppState>) -> impl IntoResponse {
     IndexPage {
         name: format!("Hello world from port {}", state.config.port),
     }
-}
-
-#[axum_macros::debug_handler]
-async fn user_create(
-    State(state): State<AppState>,
-    user: Result<Form<serde_json::Value>, FormRejection>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let Form(form) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
-    create_user(&state.db, form)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(UserDetailsPage {
-        user: empty_user(),
-        users: list_users(&state.db).await.unwrap_or_default(),
-    })
 }
 
 #[axum_macros::debug_handler]
@@ -96,14 +86,44 @@ async fn user_delete(
     Ok(Redirect::to("/user"))
 }
 
-fn get_app_config() -> model::AppConfig {
-    AppConfig {
-        db_url: var("DATABASE_URL").unwrap_or_default(),
-        port: var("PORT")
-            .ok()
-            .and_then(|x| x.parse().ok())
-            .unwrap_or(3000),
-    }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+    setup_tracing();
+    let config = load_app_config().await;
+    let port = config.port;
+    let state = AppState {
+        db: get_database(&config.db_url).await?,
+        requests: reqwest::Client::new(),
+        config,
+    };
+    let session_layer = SessionManagerLayer::new(SeaSessionBackend::new(state.db.clone()))
+        .with_secure(true)
+        .with_expiry(Expiry::OnInactivity(Duration::days(7)));
+
+    let auth_layer =
+        AuthManagerLayerBuilder::new(SeaAuthBackend::new(state.clone()), session_layer).build();
+
+    let app = Router::new()
+        .route("/", get(home))
+        .route("/user/{id}", get(user_details))
+        .route("/user/{id}", post(user_update))
+        .route("/user/{id}", delete(user_delete))
+        .route("/user", get(user_list))
+        .route(
+            OAUTH_CALLBACK_ENDPOINT,
+            get(axum_auth::handle_oauth_redirect),
+        )
+        .route(OAUTH_LOGIN_ENDPOINT, get(axum_auth::login_handler))
+        .layer(auth_layer)
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+    let app = NormalizePath::trim_trailing_slash(app);
+    // run our app with hyper, listening globally on port 3000
+    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
+    log::info!("Listening on port {port}");
+    axum::serve(listener, ServiceExt::<Request>::into_make_service(app)).await?;
+    Ok(())
 }
 
 fn setup_tracing() {
@@ -117,34 +137,20 @@ fn setup_tracing() {
         .init();
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenvy::dotenv().ok();
-    setup_tracing();
-    let config = get_app_config();
-    let port = config.port;
-    let state = AppState {
-        db: get_database(&config.db_url).await?,
-        config,
-    };
-    let session_layer = SessionManagerLayer::new(SeaSessionBackend::new(state.db.clone()));
-    let auth_layer =
-        AuthManagerLayerBuilder::new(AuthBackend::new(state.db.clone()), session_layer).build();
-
-    let app = Router::new()
-        .route("/", get(home))
-        .route("/user/{id}", get(user_details))
-        .route("/user/{id}", post(user_update))
-        .route("/user/{id}", delete(user_delete))
-        .route("/user", post(user_create))
-        .route("/user", get(user_list))
-        .layer(auth_layer)
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
-    let app = NormalizePath::trim_trailing_slash(app);
-    // run our app with hyper, listening globally on port 3000
-    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
-    log::info!("Listening on port {port}");
-    axum::serve(listener, ServiceExt::<Request>::into_make_service(app)).await?;
-    Ok(())
+async fn load_app_config() -> AppConfig {
+    let oauth_url = var("OAUTH_DISCOVER_URL").expect("OAUTH_DISCOVER_URL must be set");
+    let self_url = var("SELF_URL").expect("SELF_URL must be set");
+    let self_url = Url::parse(&self_url).expect("Invalid SELF_URL format");
+    AppConfig {
+        db_url: var("DATABASE_URL").expect("DATABASE_URL must be set"),
+        port: var("PORT")
+            .ok()
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(8889),
+        oauth: load_openid_config(&oauth_url).await,
+        oauth_client_id: var("OAUTH_CLIENT_ID").expect("OAUTH_CLIENT_ID must be set"),
+        oauth_autodiscover_url: oauth_url,
+        oauth_client_secret: var("OAUTH_CLIENT_SECRET").expect("OAUTH_CLIENT_SECRET must be set"),
+        self_url,
+    }
 }
