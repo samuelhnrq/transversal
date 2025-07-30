@@ -4,12 +4,12 @@ use std::io::Error as IOError;
 use crate::generated::user;
 use crate::oauth::UserInfo;
 
-pub(crate) async fn get_user_by_id(
+pub(crate) async fn get_user_by_sub(
     db: &DatabaseConnection,
-    id: &Uuid,
+    sub: &str,
 ) -> Result<Option<user::Model>, IOError> {
     user::Entity::find()
-        .filter(user::Column::Id.eq(*id))
+        .filter(user::Column::Sid.eq(sub))
         .one(db)
         .await
         .map_err(IOError::other)
@@ -19,19 +19,18 @@ pub(crate) async fn upsert_user(
     db: &DatabaseConnection,
     new_user: UserInfo,
 ) -> Result<user::Model, IOError> {
-    let mut model = user::ActiveModel {
+    let model = user::ActiveModel {
+        sid: ActiveValue::Set(new_user.sub),
+        email: ActiveValue::Set(new_user.email),
+        name: ActiveValue::Set(new_user.name),
         ..Default::default()
     };
-    model.sid = ActiveValue::Set(new_user.sub);
-    model.email = ActiveValue::Set(new_user.email);
-    model.name = ActiveValue::Set(new_user.name);
+    let on_conflict = OnConflict::column(user::Column::Sid)
+        .update_column(user::Column::Email)
+        .update_column(user::Column::Name)
+        .to_owned();
     user::Entity::insert(model)
-        .on_conflict(
-            OnConflict::column(user::Column::Sid)
-                .update_column(user::Column::Email)
-                .update_column(user::Column::Name)
-                .to_owned(),
-        )
+        .on_conflict(on_conflict)
         .exec_with_returning(db)
         .await
         .map_err(IOError::other)

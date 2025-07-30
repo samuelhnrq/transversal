@@ -1,69 +1,35 @@
-use axum_login::{AuthUser, AuthnBackend};
-use sea_orm::prelude::*;
 use std::io::Error as IOError;
 
 use crate::{
     generated::user,
     oauth::{TokenResponse, UserInfo},
-    repositories::user::{get_user_by_id, upsert_user},
+    repositories::user::{get_user_by_sub, upsert_user},
     state::AppState,
 };
 
-impl AuthUser for user::Model {
-    type Id = Uuid;
+pub async fn authenticate(
+    state: &AppState,
+    creds: TokenResponse,
+) -> Result<Option<user::Model>, IOError> {
+    log::debug!("Authenticating user with credentials");
+    let resp = state
+        .requests
+        .get(&state.config.oauth.userinfo_endpoint)
+        .bearer_auth(creds.access_token)
+        .send()
+        .await
+        .map_err(IOError::other)?
+        .json::<UserInfo>()
+        .await
+        .map_err(IOError::other)?;
+    log::debug!("User data fetched successfully");
 
-    fn id(&self) -> Self::Id {
-        self.id
+    if let Ok(Some(user)) = get_user_by_sub(&state.db, &resp.sub).await {
+        log::debug!("User found in database");
+        return Ok(Some(user));
     }
-
-    fn session_auth_hash(&self) -> &[u8] {
-        self.sid.as_bytes()
-    }
+    let user = upsert_user(&state.db, resp)
+        .await
+        .inspect_err(|err| log::error!("Failed to upsert user: {err}"))?;
+    Ok(Some(user))
 }
-
-#[derive(Clone)]
-pub struct SeaAuthBackend {
-    state: AppState,
-}
-
-impl SeaAuthBackend {
-    #[must_use]
-    pub fn new(state: AppState) -> Self {
-        Self { state }
-    }
-}
-
-impl AuthnBackend for SeaAuthBackend {
-    type Credentials = TokenResponse;
-    type User = user::Model;
-    type Error = IOError;
-
-    async fn authenticate(
-        &self,
-        creds: Self::Credentials,
-    ) -> Result<Option<Self::User>, Self::Error> {
-        log::debug!("Authenticating user with credentials");
-        let resp = self
-            .state
-            .requests
-            .get(&self.state.config.oauth.userinfo_endpoint)
-            .bearer_auth(creds.access_token)
-            .send()
-            .await
-            .map_err(IOError::other)?
-            .json::<UserInfo>()
-            .await
-            .map_err(IOError::other)?;
-        log::debug!("User data fetched successfully");
-        let user = upsert_user(&self.state.db, resp)
-            .await
-            .inspect_err(|err| log::error!("Failed to upsert user: {err}"))?;
-        Ok(Some(user))
-    }
-
-    async fn get_user(&self, user_id: &Uuid) -> Result<Option<Self::User>, Self::Error> {
-        get_user_by_id(&self.state.db, user_id).await
-    }
-}
-
-pub type SeaAuthSession = axum_login::AuthSession<SeaAuthBackend>;

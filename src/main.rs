@@ -6,10 +6,6 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{delete, get, post},
 };
-use axum_login::{
-    AuthManagerLayerBuilder,
-    tower_sessions::{Expiry, SessionManagerLayer, cookie::time::Duration},
-};
 use models::{
     Uuid, get_database,
     oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT},
@@ -18,14 +14,16 @@ use models::{
     },
     session::SeaSessionBackend,
     state::{AppConfig, AppState},
-    user_auth::{SeaAuthBackend, SeaAuthSession},
 };
 use reqwest::Url;
 use std::env::var;
 use tokio::net::TcpListener;
 use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
+use tower_sessions::{Expiry, Session, SessionManagerLayer, cookie::time::Duration};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use views::{AlbumView, IndexPage};
+
+use crate::axum_auth::session_user;
 
 mod auth;
 mod axum_auth;
@@ -56,10 +54,11 @@ async fn album_details(
 
 #[axum_macros::debug_handler]
 async fn album_list(
-    session: SeaAuthSession,
+    session: Session,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    log::info!("Listing albums for session: {:?}", session.user.is_some());
+    let user = session_user(&session).await;
+    log::info!("Listing albums for session: {:?}", user.is_some());
     let albums = list_albums(&state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -125,9 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_secure(true)
         .with_expiry(Expiry::OnInactivity(Duration::days(7)));
 
-    let auth_layer =
-        AuthManagerLayerBuilder::new(SeaAuthBackend::new(state.clone()), session_layer).build();
-
     let app = Router::new()
         .route("/", get(home))
         .route("/album/{id}", get(album_details))
@@ -137,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/album", post(album_create))
         .route(OAUTH_CALLBACK_ENDPOINT, get(axum_auth::redirect_handler))
         .route(OAUTH_LOGIN_ENDPOINT, get(axum_auth::login_handler))
-        .layer(auth_layer)
+        .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let app = NormalizePath::trim_trailing_slash(app);

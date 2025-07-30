@@ -11,8 +11,8 @@ sea-orm = { version = "1", features = [
     "sqlx-postgres",
     "runtime-tokio-rustls",
 ] }
+tower-sessions = { workspace = true }
 chrono = { workspace = true }
-axum-login = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }

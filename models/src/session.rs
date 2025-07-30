@@ -1,18 +1,18 @@
 use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 
-use axum_login::tower_sessions::{
-    SessionStore,
-    session::{Id, Record},
-    session_store::{self, Error as SessionStoreError},
-};
 use chrono::{DateTime, FixedOffset, Utc};
 use lru::LruCache;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait,
     prelude::async_trait::async_trait,
 };
-use time::{UtcDateTime, UtcOffset};
+use time::{OffsetDateTime, UtcDateTime, UtcOffset};
+use tower_sessions::{
+    SessionStore,
+    session::{Id, Record},
+    session_store::{self, Error as SessionStoreError},
+};
 
 use crate::generated::session;
 
@@ -36,11 +36,10 @@ impl SeaSessionBackend {
 #[async_trait]
 impl SessionStore for SeaSessionBackend {
     async fn create(&self, record: &mut Record) -> session_store::Result<()> {
-        let expiry_time = record.expiry_date.unix_timestamp_nanos();
         let new_session = session::ActiveModel {
             id: ActiveValue::Set(record.id.to_string()),
             data: ActiveValue::Set(serde_json::to_value(record.data.clone()).unwrap()),
-            expires_at: ActiveValue::Set(convert_time(expiry_time)?),
+            expires_at: ActiveValue::Set(convert_time(&record.expiry_date)?),
             ..Default::default()
         };
         let insert = new_session.insert(&self.db).await.map_err(|err| {
@@ -52,11 +51,10 @@ impl SessionStore for SeaSessionBackend {
     }
 
     async fn save(&self, record: &Record) -> session_store::Result<()> {
-        let expiry_time = record.expiry_date.unix_timestamp_nanos();
         let updated_session = session::ActiveModel {
             id: ActiveValue::Unchanged(record.id.to_string()),
             data: ActiveValue::Set(serde_json::to_value(record.data.clone()).unwrap()),
-            expires_at: ActiveValue::Set(convert_time(expiry_time)?),
+            expires_at: ActiveValue::Set(convert_time(&record.expiry_date)?),
             refreshed_at: ActiveValue::Set(Utc::now().fixed_offset()),
             ..Default::default()
         };
@@ -124,52 +122,10 @@ fn decode_error(message: &str) -> SessionStoreError {
     SessionStoreError::Decode(message.to_owned())
 }
 
-fn convert_time(time: i128) -> session_store::Result<DateTime<FixedOffset>> {
+fn convert_time(time: &OffsetDateTime) -> session_store::Result<DateTime<FixedOffset>> {
     let nanos: i64 = time
+        .unix_timestamp_nanos()
         .try_into()
         .map_err(|_| SessionStoreError::Encode("Failed to convert expiry time".to_owned()))?;
     Ok(DateTime::from_timestamp_nanos(nanos).fixed_offset())
 }
-
-// async fn still_valid_auth(jar: &mut SeaAuthSession, state: &AppState) -> Option<Claims> {
-//     let jwt = get_cookie_value("token", jar);
-//     if jwt.is_empty() {
-//         log::debug!("Missing auth cookie");
-//         return None;
-//     }
-//     log::debug!("Cookie found, validating");
-//     match decode::<Claims>(&jwt, &state.jwk, &build_validation()) {
-//         Ok(session) => Some(session.claims),
-//         Err(err) => {
-//             log::debug!("Token did not pass validation {:?}", err);
-//             if *err.kind() == ErrorKind::ExpiredSignature {
-//                 log::debug!("JWT is expired, attempting to refresh");
-//                 let refresh_token = get_cookie_value("refresh_token", jar);
-//                 let payload = from_refresh_to_token_payload(refresh_token);
-//                 let refreshed = exchange_token(state, &Either::Right(payload))
-//                     .await
-//                     .inspect_err(|err| log::error!("Failed to refresh token: '{:?}'", err))
-//                     .ok()?;
-//                 log::debug!("Successfully refreshed, persisting the new token");
-//                 *jar = jar
-//                     .clone()
-//                     .add(safe_cookie("token", &refreshed.access_token));
-//                 let decoded =
-//                     decode::<Claims>(&refreshed.access_token, &state.jwk, &build_validation());
-//                 return decoded
-//                     .inspect_err(|err| {
-//                         log::error!(
-//                             "Failed decoding JWT: {:?} (jwt={})",
-//                             err,
-//                             &refreshed.access_token
-//                         );
-//                     })
-//                     .map(|x| x.claims)
-//                     .ok();
-//             } else if *err.kind() == ErrorKind::InvalidAudience {
-//                 log::debug!("Invalid audience JWT: {jwt}");
-//             }
-//             None
-//         }
-//     }
-// }
