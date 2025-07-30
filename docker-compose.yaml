@@ -9,11 +9,18 @@ services:
     ports:
       - 5432:5432
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./infra/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+      timeout: 1s
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.3
     environment:
@@ -29,7 +36,32 @@ services:
     ports:
       - 8080:8080
       - 9000:9000
-    volumes: 
+    volumes:
       - ./infra/keycloak_config.json:/opt/keycloak/data/import/realm-config.json:ro
     command: ["start-dev", "--import-realm"]
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "echo > /dev/tcp/localhost/9000"]
+      interval: 5s
+      timeout: 1s
+      retries: 5
+      start_period: 5s
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    ports:
+      - 8889:8889
+    environment:
+      - RUST_LOG=debug
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - OAUTH_DISCOVER_URL=http://keycloak:8080/realms/transversal
+      - OAUTH_CLIENT_ID=transversal
+      - OAUTH_CLIENT_SECRET=hugO4QQGqDnDgAHptpzD9G8m9Oi3L6Ll
+      - SELF_URL=http://localhost:8889
