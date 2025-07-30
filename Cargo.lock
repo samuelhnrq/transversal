@@ -389,22 +389,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
-name = "auth"
-version = "0.1.0"
-dependencies = [
- "jsonwebtoken",
- "log",
- "models",
- "reqwest",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sha2",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3671,16 +3655,18 @@ dependencies = [
 name = "transversal"
 version = "0.1.0"
 dependencies = [
- "auth",
  "axum",
  "axum-login",
  "axum-macros",
  "dotenvy",
+ "jsonwebtoken",
  "log",
  "models",
  "reqwest",
  "serde",
  "serde_json",
+ "serde_urlencoded",
+ "sha2",
  "tokio",
  "tower-http",
  "tracing-core",

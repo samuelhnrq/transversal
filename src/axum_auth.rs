@@ -1,6 +1,8 @@
 // use std::net::{IpAddr, SocketAddr};
 
-use auth::{build_redirect_url, exchange_token, from_redirect_to_token_payload, generate_auth_url};
+use crate::auth::{
+    build_redirect_url, exchange_token, from_redirect_to_token_payload, generate_auth_url,
+};
 use axum::{
     extract::{Query, State},
     response::Redirect,
@@ -34,7 +36,7 @@ pub async fn login_handler(
 }
 
 #[axum_macros::debug_handler]
-pub async fn handle_oauth_redirect(
+pub async fn redirect_handler(
     session: SeaAuthSession,
     State(state): State<AppState>,
     Query(query): Query<AuthRedirectQuery>,

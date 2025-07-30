@@ -25,6 +25,7 @@ use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use views::{IndexPage, UserDetailsPage};
 
+mod auth;
 mod axum_auth;
 
 #[axum_macros::debug_handler]
@@ -110,10 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/user/{id}", post(user_update))
         .route("/user/{id}", delete(user_delete))
         .route("/user", get(user_list))
-        .route(
-            OAUTH_CALLBACK_ENDPOINT,
-            get(axum_auth::handle_oauth_redirect),
-        )
+        .route(OAUTH_CALLBACK_ENDPOINT, get(axum_auth::redirect_handler))
         .route(OAUTH_LOGIN_ENDPOINT, get(axum_auth::login_handler))
         .layer(auth_layer)
         .layer(TraceLayer::new_for_http())
@@ -137,6 +135,8 @@ fn setup_tracing() {
         .init();
 }
 
+/// # Panics
+/// if environment variables are not set correctly
 async fn load_app_config() -> AppConfig {
     let oauth_url = var("OAUTH_DISCOVER_URL").expect("OAUTH_DISCOVER_URL must be set");
     let self_url = var("SELF_URL").expect("SELF_URL must be set");
