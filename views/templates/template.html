@@ -50,7 +50,7 @@
             <div class="max"></div>
             {% if let Some(user) = user %}
             <div>Welcome {{user.name}}</div>
-            <a class="button transparent" href="{{ models::oauth::OAUTH_LOGOUT_ENDPOINT }}" up-follow="false">
+            <a class="button transparent" href="{{ models::oauth::OAUTH_LOGOUT_ENDPOINT }}" up-evict-cache>
                 Logout
                 <i>logout</i>
             </a>

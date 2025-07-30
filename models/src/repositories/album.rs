@@ -1,6 +1,7 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue, QueryOrder};
 use sea_orm::{DatabaseConnection, Order};
+use serde_json::json;
 use std::io::{Error as IOError, ErrorKind};
 
 use crate::generated::album;
@@ -34,15 +35,7 @@ pub async fn create_album(
     db: &DatabaseConnection,
     mut new_album: serde_json::Value,
 ) -> Result<album::Model, IOError> {
-    let in_year = new_album["year"]
-        .as_str()
-        .and_then(|x| x.parse::<i128>().ok())
-        .unwrap_or_default();
-    log::debug!("Creating new album with year: {in_year:?}");
-    new_album["year"] =
-        serde_json::Value::Number(serde_json::Number::from_i128(in_year).ok_or_else(|| {
-            IOError::new(ErrorKind::InvalidData, "Failed to convert year to i128")
-        })?); // Ensure year is optional
+    prepare_value(&mut new_album);
     let album = album::ActiveModel::from_json(new_album)
         .inspect_err(|err| log::error!("Failed convert album data: {err}"))
         .map_err(|_| IOError::new(ErrorKind::InvalidData, "Invalid album data"))?;
@@ -53,8 +46,9 @@ pub async fn create_album(
 pub async fn update_album(
     db: &DatabaseConnection,
     album_id: &Uuid,
-    updated_album: serde_json::Value,
+    mut updated_album: serde_json::Value,
 ) -> Result<album::Model, IOError> {
+    prepare_value(&mut updated_album);
     let mut album = album::ActiveModel::from_json(updated_album)
         .map_err(|_| IOError::new(ErrorKind::InvalidData, "Invalid album data"))?;
     album.id = ActiveValue::unchanged(*album_id);
@@ -67,4 +61,13 @@ pub async fn delete_album(db: &DatabaseConnection, id: &Uuid) -> Result<(), IOEr
         .await
         .map_err(IOError::other)
         .map(|_| ())
+}
+
+fn prepare_value(value: &mut serde_json::Value) {
+    let in_year = value["year"]
+        .as_str()
+        .and_then(|x| x.parse::<i128>().ok())
+        .unwrap_or_default();
+    log::debug!("Creating new album with year: {in_year:?}");
+    value["year"] = json!(in_year);
 }
