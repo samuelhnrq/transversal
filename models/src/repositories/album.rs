@@ -42,6 +42,7 @@ pub async fn create_album(
     mut new_album: serde_json::Value,
 ) -> Result<album::Model, IOError> {
     prepare_value(&mut new_album);
+    // Its simpler to appease serde then sea-orm
     new_album["id"] = json!(Uuid::nil().to_string());
     let created_by = new_album
         .get("_created_by")
@@ -62,7 +63,6 @@ pub async fn update_album(
     mut updated_album: serde_json::Value,
 ) -> Result<album::Model, IOError> {
     prepare_value(&mut updated_album);
-    updated_album["id"] = json!(album_id.to_string());
     let mut album = album::ActiveModel::new();
     album
         .set_from_json(updated_album)
