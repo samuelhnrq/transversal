@@ -37,7 +37,7 @@ pub async fn login_handler(
 
 #[axum_macros::debug_handler]
 pub async fn redirect_handler(
-    session: SeaAuthSession,
+    mut session: SeaAuthSession,
     State(state): State<AppState>,
     Query(query): Query<AuthRedirectQuery>,
 ) -> Result<Redirect, String> {
@@ -68,7 +68,23 @@ pub async fn redirect_handler(
             return Ok(Redirect::to(config.self_url.as_ref()));
         }
     };
-    session.authenticate(code).await.ok();
+    let user = session
+        .authenticate(code)
+        .await
+        .map_err(|err| {
+            log::error!("Failed to authenticate session: {err:?}");
+            "Failed to authenticate session".to_string()
+        })?
+        .ok_or_else(|| {
+            log::error!("Failed to authenticate session, no user found");
+            "Failed to authenticate session, no user found".to_string()
+        })?;
+    session.login(&user).await.ok();
+    session
+        .session
+        .remove::<LoginAttempt>(AUTH_PARAMS_KEY)
+        .await
+        .ok();
     Ok(Redirect::to("/"))
 }
 

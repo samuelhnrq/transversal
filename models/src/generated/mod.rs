@@ -2,5 +2,6 @@
 
 pub mod prelude;
 
+pub mod album;
 pub mod session;
 pub mod user;

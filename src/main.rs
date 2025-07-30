@@ -13,17 +13,19 @@ use axum_login::{
 use models::{
     Uuid, get_database,
     oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT},
+    repositories::album::{
+        create_album, delete_album, empty_album, get_album_by_id, list_albums, update_album,
+    },
     session::SeaSessionBackend,
     state::{AppConfig, AppState},
-    user_auth::SeaAuthBackend,
-    user_repository::{delete_user, empty_user, get_user_by_id, list_users, update_user},
+    user_auth::{SeaAuthBackend, SeaAuthSession},
 };
 use reqwest::Url;
 use std::env::var;
 use tokio::net::TcpListener;
 use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
-use views::{IndexPage, UserDetailsPage};
+use views::{AlbumView, IndexPage};
 
 mod auth;
 mod axum_auth;
@@ -32,59 +34,80 @@ mod axum_auth;
 async fn home(State(state): State<AppState>) -> impl IntoResponse {
     state.db.ping().await.ok();
     IndexPage {
-        name: format!("Hello world from port {}", state.config.port),
+        name: format!("Running on port {}", state.config.port),
     }
 }
 
 #[axum_macros::debug_handler]
-async fn user_details(
+async fn album_details(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, Redirect> {
-    let user = get_user_by_id(&state.db, &id)
+    let album = get_album_by_id(&state.db, &id)
         .await
-        .map_err(|_| Redirect::to("/user"))?
-        .ok_or_else(|| Redirect::to("/user"))?;
-    Ok(UserDetailsPage {
-        user: user.into(),
-        users: list_users(&state.db).await.unwrap_or_default(),
+        .map_err(|_| Redirect::to("/album"))?
+        .ok_or_else(|| Redirect::to("/album"))?;
+
+    Ok(AlbumView {
+        album: album.into(),
+        albums: list_albums(&state.db).await.unwrap_or_default(),
     })
 }
 
 #[axum_macros::debug_handler]
-async fn user_list(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    let users = list_users(&state.db).await.unwrap_or_default();
-    Ok(UserDetailsPage {
-        user: empty_user(),
-        users,
-    })
-}
-
-#[axum_macros::debug_handler]
-async fn user_update(
+async fn album_list(
+    session: SeaAuthSession,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-    user: Result<Form<serde_json::Value>, FormRejection>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let Form(form) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
-    update_user(&state.db, &id, form)
+    log::info!("Listing albums for session: {:?}", session.user.is_some());
+    let albums = list_albums(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(AlbumView {
+        album: empty_album(),
+        albums,
+    })
+}
+
+#[axum_macros::debug_handler]
+async fn album_create(
+    State(state): State<AppState>,
+    album: Result<Form<serde_json::Value>, FormRejection>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let Form(form) = album
+        .inspect_err(|err| log::error!("Failed to parse album form: {err}"))
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    create_album(&state.db, form)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(UserDetailsPage {
-        user: empty_user(),
-        users: list_users(&state.db).await.unwrap_or_default(),
+    Ok(Redirect::to("/album"))
+}
+
+#[axum_macros::debug_handler]
+async fn album_update(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    album: Result<Form<serde_json::Value>, FormRejection>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let Form(form) = album.map_err(|_| StatusCode::BAD_REQUEST)?;
+    update_album(&state.db, &id, form)
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    Ok(AlbumView {
+        album: empty_album(),
+        albums: list_albums(&state.db).await.unwrap_or_default(),
     })
 }
 
 #[axum_macros::debug_handler]
-async fn user_delete(
+async fn album_delete(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    delete_user(&state.db, &id)
+    delete_album(&state.db, &id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
-    Ok(Redirect::to("/user"))
+    Ok(Redirect::to("/album"))
 }
 
 #[tokio::main]
@@ -107,10 +130,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/", get(home))
-        .route("/user/{id}", get(user_details))
-        .route("/user/{id}", post(user_update))
-        .route("/user/{id}", delete(user_delete))
-        .route("/user", get(user_list))
+        .route("/album/{id}", get(album_details))
+        .route("/album/{id}", post(album_update))
+        .route("/album/{id}", delete(album_delete))
+        .route("/album", get(album_list))
+        .route("/album", post(album_create))
         .route(OAUTH_CALLBACK_ENDPOINT, get(axum_auth::redirect_handler))
         .route(OAUTH_LOGIN_ENDPOINT, get(axum_auth::login_handler))
         .layer(auth_layer)

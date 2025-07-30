@@ -5,8 +5,8 @@ use std::io::Error as IOError;
 use crate::{
     generated::user,
     oauth::{TokenResponse, UserInfo},
+    repositories::user::{get_user_by_id, upsert_user},
     state::AppState,
-    user_repository::{get_user_by_id, upsert_user},
 };
 
 impl AuthUser for user::Model {

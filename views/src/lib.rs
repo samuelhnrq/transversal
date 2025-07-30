@@ -1,9 +1,6 @@
 use askama::Template;
 use askama_web::WebTemplate;
-use models::{
-    ActiveValue, Value,
-    generated::user::{self},
-};
+use models::{ActiveValue, Value, generated::album};
 
 #[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
@@ -12,10 +9,10 @@ pub struct IndexPage {
 }
 
 #[derive(Template, WebTemplate)]
-#[template(path = "user_details.html")]
-pub struct UserDetailsPage {
-    pub user: user::ActiveModel,
-    pub users: Vec<user::Model>,
+#[template(path = "album_view.html")]
+pub struct AlbumView {
+    pub album: album::ActiveModel,
+    pub albums: Vec<album::Model>,
 }
 
 pub(crate) fn is_value_set<T: Into<Value>>(value: &ActiveValue<T>) -> bool {

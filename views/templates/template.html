@@ -61,9 +61,25 @@
 
 </html>
 
-{% macro text_field(label, name, value) %}
+{%macro text_field(label, name, value) %}
+{% call field(label, name, value, "text") %}
+{% endmacro %}
+
+{% macro password_field(label, name, value) %}
+{% call field(label, name, value, "password") %}
+{% endmacro %}
+
+{% macro email_field(label, name, value) %}
+{% call field(label, name, value, "email") %}
+{% endmacro %}
+
+{% macro number_field(label, name, value) %}
+{% call field(label, name, value, "number") %}
+{% endmacro %}
+
+{% macro field(label, name, value, type) %}
 <div class="field label fill">
-    <input id="{{ name }}_field_id" type="text" name="{{ name }}" value="{{ value | maybe }}" required
+    <input id="{{ name }}_field_id" type="{{ type }}" name="{{ name }}" value="{{ value | maybe }}" required
         autocomplete="off">
     <label id="{{ name }}_label_id" for="{{ name }}_field_id"
         class="{% if crate::is_value_set(&value) %}active{% endif %}">

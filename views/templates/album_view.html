@@ -1,0 +1,86 @@
+{% extends "template.html" %}
+
+{% block content %}
+
+<article class="border" style="height: 30vh;">
+    <div class="row">
+        <h2>Albums</h2>
+        <div class="max"></div>
+
+        <a class="button circle transparent" href="/album">
+            <i>add</i>
+        </a>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Artist</th>
+                <th>Year</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for album in albums %}
+            <tr up-follow up-href="/album/{{ album.id }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ album.title }}</td>
+                <td>{{ album.artist }}</td>
+                <td>{{ album.year }}</td>
+            </tr>
+            {% else %}
+            <tr class="center-align">
+                <td colspan="4" class="center italic">
+                    <h6>No albums found</h6>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</article>
+
+<article>
+    <form method="post" action="/album/{{ album.id | maybe }}" id="album-form" up-submit>
+        <div class="row">
+            {% if crate::is_value_set(&album.id) %}
+            <h3>Edit album</h3>
+            {% else %}
+            <h3>New Album</h3>
+            {% endif %}
+            <div class="max"></div>
+
+            <button type="reset" class="transparent circle">
+                <i>refresh</i>
+            </button>
+        </div>
+
+        {% if crate::is_value_set(&album.id) %}
+        <input type="hidden" name="id" value="{{ album.id | maybe }}">
+        {% endif %}
+        <legend>Album Information</legend>
+        {% call text_field("Title", "title", album.title) %}
+        {% call text_field("Artist", "artist", album.artist) %}
+        {% call number_field("Year", "year", album.year) %}
+
+        <div class="row">
+            {% if crate::is_value_set(&album.id) %}
+            <a class="button tertiary" up-method="delete" href="/album/{{ album.id | maybe }}">
+                Delete
+                <i>delete</i>
+            </a>
+            {% endif %}
+            <div class="max"></div>
+            <button type="submit" class="small-elevate">
+                {% if crate::is_value_set(&album.id) %}
+                Update
+                {% else %}
+                Create
+                {% endif %}
+                <i>save</i>
+            </button>
+        </div>
+    </form>
+</article>
+
+{% endblock %}
