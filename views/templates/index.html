@@ -3,7 +3,7 @@
 <p>
     Welcome to the transversal template. This page is an
     <a href="https://askama.readthedocs.io/" target="_blank" rel="noopener noreferrer">askama</a>
-    template evaluated at compile time for <i>blazing speed</i>.
+    template evaluated at compile time for blazing speed.
 </p>
 <p>
     This template was built using Rust and the Axum framework. The following
@@ -11,6 +11,9 @@
     harnessing the power of axum & unipoly to bridge the gap between Rust and SPA
     experience.
 </p>
-
+{% if user.is_some() %}
 <a href="/album" class="button">View Albums</a>
+{% else %}
+<div>Please login</div>
+{% endif %}
 {% endblock %}

@@ -20,8 +20,9 @@ pub fn generate_auth_url(
 
 pub async fn load_openid_config(url: &str) -> OpenIdConfiguration {
     let trimmed = url.strip_suffix('/').unwrap_or(url);
-    let issuer_url = Url::parse(&format!("{trimmed}/.well-known/openid-configuration"))
-        .expect("Invalid oauth config URL");
+    let url = format!("{trimmed}/.well-known/openid-configuration");
+    log::info!("Loading OpenID configuration from {url}");
+    let issuer_url = Url::parse(&url).expect("Invalid oauth config URL");
     log::info!("Fetching oauth config at {issuer_url}");
     reqwest::get(issuer_url)
         .await

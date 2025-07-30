@@ -2,6 +2,7 @@ use auth_utils::load_openid_config;
 use axum::{
     Router, ServiceExt,
     extract::Request,
+    middleware,
     routing::{delete, get, post},
 };
 use models::{
@@ -19,7 +20,8 @@ use tracing_subscriber::{filter::LevelFilter, prelude::*};
 
 use crate::controllers::{
     album::{album_create, album_delete, album_details, album_list, album_update},
-    auth, home,
+    auth::{self, login_required},
+    home,
 };
 
 mod auth_utils;
@@ -41,15 +43,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_expiry(Expiry::OnInactivity(Duration::days(7)));
 
     let app = Router::new()
-        .route("/", get(home))
+        // Private routes (login required)
         .route("/album/{id}", get(album_details))
         .route("/album/{id}", post(album_update))
         .route("/album/{id}", delete(album_delete))
         .route("/album", get(album_list))
         .route("/album", post(album_create))
+        .layer(middleware::from_fn(login_required))
+        // Public routes
         .route(OAUTH_CALLBACK_ENDPOINT, get(auth::redirect_handler))
         .route(OAUTH_LOGOUT_ENDPOINT, get(auth::logout_handler))
         .route(OAUTH_LOGIN_ENDPOINT, get(auth::login_handler))
+        .route("/", get(home))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -62,12 +67,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup_tracing() {
+    let filter = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(LevelFilter::DEBUG.into())
+        .from_env_lossy();
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::DEBUG.into())
-                .from_env_lossy(),
-        )
+        .with(filter)
         .with(tracing_subscriber::fmt::layer())
         .init();
 }
@@ -78,12 +82,13 @@ async fn load_app_config() -> AppConfig {
     let oauth_url = var("OAUTH_DISCOVER_URL").expect("OAUTH_DISCOVER_URL must be set");
     let self_url = var("SELF_URL").expect("SELF_URL must be set");
     let self_url = Url::parse(&self_url).expect("Invalid SELF_URL format");
+    let port = var("PORT")
+        .ok()
+        .and_then(|x| x.parse().ok())
+        .unwrap_or(8889);
     AppConfig {
         db_url: var("DATABASE_URL").expect("DATABASE_URL must be set"),
-        port: var("PORT")
-            .ok()
-            .and_then(|x| x.parse().ok())
-            .unwrap_or(8889),
+        port,
         oauth: load_openid_config(&oauth_url).await,
         oauth_client_id: var("OAUTH_CLIENT_ID").expect("OAUTH_CLIENT_ID must be set"),
         oauth_autodiscover_url: oauth_url,

@@ -2,8 +2,9 @@ use crate::auth_utils::{
     build_redirect_url, exchange_token, from_redirect_to_token_payload, generate_auth_url,
 };
 use axum::{
-    extract::{Query, State},
-    response::Redirect,
+    extract::{Query, Request, State},
+    middleware::Next,
+    response::{IntoResponse, Redirect, Response},
 };
 use models::{
     generated::user,
@@ -16,7 +17,15 @@ use tower_sessions::Session;
 const USER_SESSION_KEY: &str = "user";
 const AUTH_PARAMS_KEY: &str = "auth_params";
 
-#[allow(clippy::unused_async)]
+#[axum_macros::debug_middleware]
+pub(crate) async fn login_required(session: Session, request: Request, next: Next) -> Response {
+    if session_user(&session).await.is_none() {
+        log::warn!("Unauthorized access attempt, redirecting to homepage");
+        return Redirect::to("/").into_response();
+    }
+    next.run(request).await
+}
+
 #[axum_macros::debug_handler]
 pub(crate) async fn login_handler(
     session: Session,
@@ -95,51 +104,3 @@ pub(crate) async fn logout_handler(session: Session) -> Redirect {
     session.clear().await;
     Redirect::to("/")
 }
-
-// fn is_safe_requester(addr: SocketAddr) -> bool {
-//     match addr.ip() {
-//         IpAddr::V4(ipv4) => ipv4.is_private() || ipv4.is_loopback(),
-//         IpAddr::V6(ipv6) => ipv6.is_loopback(),
-//     }
-// }
-
-// fn build_unauthorized_response(cause: &'static str) -> Response {
-//     let error = UnauthorizedError::new(cause);
-//     let mut unauthorized = Json(error).into_response();
-//     *unauthorized.status_mut() = StatusCode::FORBIDDEN;
-//     unauthorized
-// }
-
-// pub async fn required_login_middleware(
-//     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-//     request: Request,
-//     next: Next,
-// ) -> Response {
-//     let user_option = request.extensions().get::<Claims>();
-//     if is_safe_requester(addr) || user_option.is_some() {
-//         next.run(request).await
-//     } else {
-//         build_unauthorized_response("Unauthorized")
-//     }
-// }
-
-// pub async fn user_data_extension(
-//     mut jar: PrivateCookieJar,
-//     State(state): State<AppState>,
-//     mut request: Request,
-//     next: Next,
-// ) -> (PrivateCookieJar, Response) {
-//     if let Some(user_data) = validate_cookie(&mut jar, &state).await {
-//         let db_conn = &state.connection;
-//         if let Some(user) = find_by_sub(db_conn, &user_data.sub).await {
-//             request.extensions_mut().insert(user);
-//             request.extensions_mut().insert(user_data);
-//             log::debug!("Inserted extensions successfully");
-//         } else {
-//             log::error!("JWT valid bug sub not found in database, not trusting cookie");
-//         }
-//     } else {
-//         log::debug!("Cookie did not pass validation");
-//     }
-//     (jar, next.run(request).await)
-// }
