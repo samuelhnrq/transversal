@@ -1,4 +1,4 @@
-use axum_login::AuthUser;
+use axum_login::{AuthUser, AuthnBackend};
 use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue, QueryOrder};
 use sea_orm::{DatabaseConnection, Order};
@@ -18,6 +18,39 @@ impl AuthUser for user::Model {
     }
 }
 
+#[derive(Clone)]
+pub struct AuthBackend {
+    db: DatabaseConnection,
+}
+
+impl AuthBackend {
+    pub fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+}
+
+impl AuthnBackend for AuthBackend {
+    type Credentials = Uuid;
+    type User = user::Model;
+    type Error = IOError;
+
+    async fn authenticate(
+        &self,
+        creds: Self::Credentials,
+    ) -> Result<Option<Self::User>, Self::Error> {
+        let user = user::Entity::find()
+            .filter(user::Column::Id.eq(creds))
+            .one(&self.db)
+            .await
+            .map_err(IOError::other)?;
+        Ok(user)
+    }
+
+    async fn get_user(&self, user_id: &Uuid) -> Result<Option<Self::User>, Self::Error> {
+        get_user_by_id(&self.db, user_id).await
+    }
+}
+
 pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<user::Model>, IOError> {
     user::Entity::find()
         .order_by(user::Column::CreatedAt, Order::Desc)
@@ -27,13 +60,15 @@ pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<user::Model>, IOE
         .map_err(IOError::other)
 }
 
-pub async fn get_user_by_id(db: &DatabaseConnection, id: &Uuid) -> Result<user::Model, IOError> {
+pub async fn get_user_by_id(
+    db: &DatabaseConnection,
+    id: &Uuid,
+) -> Result<Option<user::Model>, IOError> {
     user::Entity::find()
         .filter(user::Column::Id.eq(*id))
         .one(db)
         .await
         .map_err(IOError::other)
-        .and_then(|user| user.ok_or_else(|| IOError::new(ErrorKind::NotFound, "User not found")))
 }
 
 pub fn empty_user() -> user::ActiveModel {

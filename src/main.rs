@@ -6,9 +6,13 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{delete, get, post},
 };
+use axum_login::{AuthManagerLayerBuilder, tower_sessions::SessionManagerLayer};
 use models::{
     Uuid, get_database,
-    user::{create_user, delete_user, empty_user, get_user_by_id, list_users, update_user},
+    session::SeaSessionBackend,
+    user::{
+        AuthBackend, create_user, delete_user, empty_user, get_user_by_id, list_users, update_user,
+    },
 };
 use std::env::var;
 use tokio::net::TcpListener;
@@ -48,7 +52,8 @@ async fn user_details(
 ) -> Result<impl IntoResponse, Redirect> {
     let user = get_user_by_id(&state.db, &id)
         .await
-        .map_err(|_| Redirect::to("/user"))?;
+        .map_err(|_| Redirect::to("/user"))?
+        .ok_or_else(|| Redirect::to("/user"))?;
     Ok(UserDetailsPage {
         user: user.into(),
         users: list_users(&state.db).await.unwrap_or_default(),
@@ -122,6 +127,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         db: get_database(&config.db_url).await?,
         config,
     };
+    let session_layer = SessionManagerLayer::new(SeaSessionBackend::new(state.db.clone()));
+    let auth_layer =
+        AuthManagerLayerBuilder::new(AuthBackend::new(state.db.clone()), session_layer).build();
+
     let app = Router::new()
         .route("/", get(home))
         .route("/user/{id}", get(user_details))
@@ -129,6 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/user/{id}", delete(user_delete))
         .route("/user", post(user_create))
         .route("/user", get(user_list))
+        .layer(auth_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let app = NormalizePath::trim_trailing_slash(app);
