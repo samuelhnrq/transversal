@@ -6,11 +6,7 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{delete, get, post},
 };
-use models::{
-    ActiveValue,
-    generated::user::{self, *},
-    get_database,
-};
+use models::{ActiveValue, generated::user, get_database, *};
 use std::env::var;
 use tokio::net::TcpListener;
 use tower_http::{normalize_path::NormalizePath, trace::TraceLayer};
@@ -28,6 +24,24 @@ async fn home(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 #[axum_macros::debug_handler]
+async fn user_create(
+    State(state): State<AppState>,
+    user: Result<Form<serde_json::Value>, FormRejection>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let Form(form) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut user = user::ActiveModel::new();
+    user.set_from_json(form).ok();
+    log::info!("Creating user: {user:?}");
+    user.insert(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(UserDetailsPage {
+        user: user::ActiveModel::new(),
+        users: list_users(&state.db).await.unwrap_or_default(),
+    })
+}
+
+#[axum_macros::debug_handler]
 async fn user_details(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -40,45 +54,13 @@ async fn user_details(
         .ok_or_else(|| Redirect::to("/user"))?;
     Ok(UserDetailsPage {
         user: user.into(),
-        users: user::Entity::find()
-            .paginate(&state.db, 10)
-            .fetch()
-            .await
-            .unwrap_or_default(),
+        users: list_users(&state.db).await.unwrap_or_default(),
     })
 }
 
 #[axum_macros::debug_handler]
-async fn user_create(
-    State(state): State<AppState>,
-    user: Result<Form<serde_json::Value>, FormRejection>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let Form(user) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
-    let user = user::ActiveModel::from_json(user)
-        .inspect_err(|e| {
-            log::error!("Failed to deserialize user: {e:?}");
-        })
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    user.insert(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(UserDetailsPage {
-        user: user::ActiveModel::new(),
-        users: user::Entity::find()
-            .paginate(&state.db, 10)
-            .fetch()
-            .await
-            .unwrap_or_default(),
-    })
-}
-
-#[axum_macros::debug_handler]
-async fn list_users(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    let users = user::Entity::find()
-        .paginate(&state.db, 10)
-        .fetch()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn user_list(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
+    let users = list_users(&state.db).await.unwrap_or_default();
     Ok(UserDetailsPage {
         user: user::ActiveModel::new(),
         users,
@@ -86,31 +68,26 @@ async fn list_users(State(state): State<AppState>) -> Result<impl IntoResponse, 
 }
 
 #[axum_macros::debug_handler]
-async fn update_user(
+async fn user_update(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     user: Result<Form<serde_json::Value>, FormRejection>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let Form(user) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
-    let user: user::ActiveModel =
-        user::ActiveModel::from_json(user).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let Form(form) = user.map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut user = user::ActiveModel::from_json(form).map_err(|_| StatusCode::BAD_REQUEST)?;
+    user.id = ActiveValue::Set(id);
     log::info!("Updating user with ID: {id} and {user:?}");
-    let user = user
-        .update(&state.db)
+    user.update(&state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(UserDetailsPage {
-        user: user.into(),
-        users: user::Entity::find()
-            .paginate(&state.db, 10)
-            .fetch()
-            .await
-            .unwrap_or_default(),
+        user: user::ActiveModel::new(),
+        users: list_users(&state.db).await.unwrap_or_default(),
     })
 }
 
 #[axum_macros::debug_handler]
-async fn delete_user(
+async fn user_delete(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -158,10 +135,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(home))
         .route("/user/{id}", get(user_details))
-        .route("/user/{id}", post(update_user))
-        .route("/user/{id}", delete(delete_user))
+        .route("/user/{id}", post(user_update))
+        .route("/user/{id}", delete(user_delete))
         .route("/user", post(user_create))
-        .route("/user", get(list_users))
+        .route("/user", get(user_list))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let app = NormalizePath::trim_trailing_slash(app);

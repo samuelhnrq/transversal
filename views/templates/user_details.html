@@ -28,8 +28,10 @@
                 <td>{{ user.token }}</td>
             </tr>
             {% else %}
-            <tr>
-                <td colspan="2">No users found.</td>
+            <tr class="center-align">
+                <td colspan="3" class="center italic">
+                    <h6>No users found</h6>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -66,7 +68,7 @@
             </a>
             {% endif %}
             <div class="max"></div>
-            <button type="submit">
+            <button type="submit" class="small-elevate">
                 {% if crate::is_value_set(&user.id) %}
                 Update
                 {% else %}

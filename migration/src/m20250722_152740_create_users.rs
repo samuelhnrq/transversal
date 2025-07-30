@@ -4,7 +4,7 @@ use sea_orm_migration::{prelude::*, schema::*};
 pub struct Migration;
 
 #[derive(DeriveIden)]
-enum User {
+pub(crate) enum User {
     Table,
     Id,
     Username,

@@ -28,10 +28,19 @@
         up.network.config.wrapMethod = false;
         up.link.config.followSelectors.push('a[href]')
         up.form.config.submitSelectors.push('form')
+
+        up.compiler('.field > label', function (element) {
+            function touched(event) {
+                console.log('touched:', event);
+                element.classList.remove('active');
+            }
+            document.getElementById(element.getAttribute('for'))
+                .addEventListener("focus", touched, { once: true });
+        })
     </script>
     {% block header %}
     <header class="tertiary-container small-elevate">
-        <nav class="responsive">
+        <nav class="responsive" style="max-width: 75rem; margin: 0 auto;">
             <button class="circle transparent">
                 <i>arrow_back</i>
             </button>
@@ -56,7 +65,8 @@
 <div class="field label fill">
     <input id="{{ name }}_field_id" type="text" name="{{ name }}" value="{{ value | maybe }}" required
         autocomplete="off">
-    <label for="{{ name }}_field_id">
+    <label id="{{ name }}_label_id" for="{{ name }}_field_id"
+        class="{% if crate::is_value_set(&value) %}active{% endif %}">
         {{ label }}
     </label>
 </div>
