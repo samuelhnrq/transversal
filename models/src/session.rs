@@ -20,16 +20,10 @@ pub struct SeaSessionBackend {
 }
 
 impl SeaSessionBackend {
+    #[must_use]
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
-}
-
-fn convert_time(time: i128) -> session_store::Result<DateTime<FixedOffset>> {
-    let nanos: i64 = time
-        .try_into()
-        .map_err(|_| SessionStoreError::Encode("Failed to convert expiry time".to_owned()))?;
-    Ok(DateTime::from_timestamp_nanos(nanos).fixed_offset())
 }
 
 #[async_trait]
@@ -70,25 +64,27 @@ impl SessionStore for SeaSessionBackend {
             .one(&self.db)
             .await
             .map_err(|_| backend_error("Failed to load session"))?;
-        let Some(session) = session else {
+        let Some(sess) = session else {
             return Ok(None);
         };
-        let expiry_time = session
-            .expires_at
-            .timestamp_nanos_opt()
-            .ok_or_else(|| decode_error("Failed to get expiry date nanos"))?
-            as i128;
-        let expiry_date = UtcDateTime::from_unix_timestamp_nanos(expiry_time)
-            .map_err(|_| decode_error("Failed to decode expiry date"))?
-            .to_offset(UtcOffset::UTC);
-        let record = Record {
-            id: Id::from_str(&session.id)
-                .map_err(|_| decode_error("Failed to parse session ID"))?,
-            data: serde_json::from_value(session.data)
-                .map_err(|_| decode_error("Failed to decode session data"))?,
-            expiry_date,
+        let Some(expiry_time) = sess.expires_at.timestamp_nanos_opt().map(i128::from) else {
+            return Err(decode_error("Failed to decode expiry time"));
         };
-        Ok(Some(record))
+        let expiry_date = match UtcDateTime::from_unix_timestamp_nanos(expiry_time) {
+            Ok(date) => date.to_offset(UtcOffset::UTC),
+            Err(_) => return Err(decode_error("Failed to convert expiry time")),
+        };
+        let Ok(id) = Id::from_str(&sess.id) else {
+            return Err(decode_error("Failed to parse session ID"));
+        };
+        let Ok(data) = serde_json::from_value(sess.data) else {
+            return Err(decode_error("Failed to decode session data"));
+        };
+        Ok(Some(Record {
+            id,
+            data,
+            expiry_date,
+        }))
     }
 
     async fn delete(&self, session_id: &Id) -> session_store::Result<()> {
@@ -104,10 +100,19 @@ impl SessionStore for SeaSessionBackend {
     }
 }
 
+pub type AuthSession = axum_login::AuthSession<SeaSessionBackend>;
+
 fn backend_error(message: &str) -> SessionStoreError {
     SessionStoreError::Backend(message.to_owned())
 }
 
 fn decode_error(message: &str) -> SessionStoreError {
     SessionStoreError::Decode(message.to_owned())
+}
+
+fn convert_time(time: i128) -> session_store::Result<DateTime<FixedOffset>> {
+    let nanos: i64 = time
+        .try_into()
+        .map_err(|_| SessionStoreError::Encode("Failed to convert expiry time".to_owned()))?;
+    Ok(DateTime::from_timestamp_nanos(nanos).fixed_offset())
 }

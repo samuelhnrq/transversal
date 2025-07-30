@@ -24,6 +24,7 @@ pub struct AuthBackend {
 }
 
 impl AuthBackend {
+    #[must_use]
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
@@ -71,6 +72,7 @@ pub async fn get_user_by_id(
         .map_err(IOError::other)
 }
 
+#[must_use]
 pub fn empty_user() -> user::ActiveModel {
     user::ActiveModel::new()
 }

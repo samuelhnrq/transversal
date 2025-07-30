@@ -28,6 +28,10 @@ pub(crate) fn is_value_set<T: Into<Value>>(value: &ActiveValue<T>) -> bool {
 pub(crate) mod filters {
     use models::{ActiveValue, Value};
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "askama requires a Result return type"
+    )]
     pub fn maybe<T: Into<Value> + ToString>(
         value: &ActiveValue<T>,
         _: &dyn askama::Values,
