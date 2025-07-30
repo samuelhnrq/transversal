@@ -75,13 +75,13 @@ pub fn build_redirect_url(config: &AppConfig) -> String {
     redirect_url.to_string()
 }
 
-// fn from_refresh_to_token_payload(token: String) -> RefreshPayload {
+// pub(crate) fn from_refresh_to_token_payload(config: &AppConfig, token: String) -> RefreshPayload {
 //     RefreshPayload {
 //         refresh_token: token,
-//         client_id: LOADED_CONFIG.oauth_client_id.clone(),
-//         client_secret: LOADED_CONFIG.oauth_client_secret.clone(),
+//         client_id: config.oauth_client_id.clone(),
+//         client_secret: config.oauth_client_secret.clone(),
 //         grant_type: "refresh_token".to_string(),
-//         redirect_uri: build_redirect_url(),
+//         redirect_uri: build_redirect_url(config),
 //     }
 // }
 

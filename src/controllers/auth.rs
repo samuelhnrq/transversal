@@ -1,6 +1,4 @@
-// use std::net::{IpAddr, SocketAddr};
-
-use crate::auth::{
+use crate::auth_utils::{
     build_redirect_url, exchange_token, from_redirect_to_token_payload, generate_auth_url,
 };
 use axum::{
@@ -20,7 +18,7 @@ const AUTH_PARAMS_KEY: &str = "auth_params";
 
 #[allow(clippy::unused_async)]
 #[axum_macros::debug_handler]
-pub async fn login_handler(
+pub(crate) async fn login_handler(
     session: Session,
     State(state): State<AppState>,
 ) -> Result<Redirect, String> {
@@ -39,13 +37,12 @@ pub async fn login_handler(
 }
 
 #[axum_macros::debug_handler]
-pub async fn redirect_handler(
+pub(crate) async fn redirect_handler(
     session: Session,
     State(state): State<AppState>,
     Query(query): Query<AuthRedirectQuery>,
 ) -> Result<Redirect, String> {
     log::info!("Got oauth2 redirect, reading cookies");
-    let config = &state.config;
     let attempt = session
         .get::<LoginAttempt>(AUTH_PARAMS_KEY)
         .await
@@ -59,15 +56,15 @@ pub async fn redirect_handler(
             query.state,
             crsf_token
         );
-        return Ok(Redirect::to(config.self_url.as_ref()));
+        return Ok(Redirect::to("/"));
     }
     log::info!("cookies pass, converting to token exchage payload");
-    let token_payload = from_redirect_to_token_payload(config, query, pkce);
+    let token_payload = from_redirect_to_token_payload(&state.config, query, pkce);
     let code = match exchange_token(&state, &token_payload).await {
         Ok(code) => code,
         Err(err) => {
             log::error!("Failed to exchange token {err:?}");
-            return Ok(Redirect::to(config.self_url.as_ref()));
+            return Ok(Redirect::to("/"));
         }
     };
     let user = authenticate(&state, code)
@@ -93,40 +90,11 @@ pub(crate) async fn session_user(session: &Session) -> Option<user::Model> {
         .flatten()
 }
 
-// #[axum_macros::debug_handler]
-// pub async fn logout_handler(
-//     State(state): State<AppState>,
-//     jar: PrivateCookieJar,
-// ) -> impl IntoResponse {
-//     log::info!("starting logout");
-//     let mut params = HashMap::<&str, String>::new();
-//     params.insert("client_id", LOADED_CONFIG.oauth_client_id.to_string());
-//     if let Some(refresh_token) = jar.get("refresh_token") {
-//         log::info!("has refresh adding to logout payload");
-//         params.insert("refresh_token", refresh_token.value_trimmed().to_string());
-//     }
-//     let resp = state
-//         .requests
-//         .post(state.oauth_config.end_session_endpoint)
-//         .basic_auth(
-//             &LOADED_CONFIG.oauth_client_id,
-//             Some(&LOADED_CONFIG.oauth_client_secret),
-//         )
-//         .form(&params)
-//         .send()
-//         .await
-//         .inspect_err(|err| log::error!("Failed to revoke endpoint {:?}", err))
-//         .ok();
-//     let jar = if let Some(x) = resp {
-//         let body = x.text().await.unwrap_or_default();
-//         log::info!("Got successfull answer! {body}");
-//         jar.remove(safe_cookie("token", ""))
-//             .remove(safe_cookie("refresh_token", ""))
-//     } else {
-//         jar
-//     };
-//     (jar, Redirect::to("/"))
-// }
+#[axum_macros::debug_handler]
+pub(crate) async fn logout_handler(session: Session) -> Redirect {
+    session.clear().await;
+    Redirect::to("/")
+}
 
 // fn is_safe_requester(addr: SocketAddr) -> bool {
 //     match addr.ip() {

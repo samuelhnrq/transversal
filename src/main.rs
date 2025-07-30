@@ -1,4 +1,4 @@
-use auth::load_openid_config;
+use auth_utils::load_openid_config;
 use axum::{
     Router, ServiceExt,
     extract::Request,
@@ -6,7 +6,7 @@ use axum::{
 };
 use models::{
     get_database,
-    oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT},
+    oauth::{OAUTH_CALLBACK_ENDPOINT, OAUTH_LOGIN_ENDPOINT, OAUTH_LOGOUT_ENDPOINT},
     session::SeaSessionBackend,
     state::{AppConfig, AppState},
 };
@@ -19,11 +19,10 @@ use tracing_subscriber::{filter::LevelFilter, prelude::*};
 
 use crate::controllers::{
     album::{album_create, album_delete, album_details, album_list, album_update},
-    home,
+    auth, home,
 };
 
-mod auth;
-mod axum_auth;
+mod auth_utils;
 mod controllers;
 
 #[tokio::main]
@@ -48,8 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/album/{id}", delete(album_delete))
         .route("/album", get(album_list))
         .route("/album", post(album_create))
-        .route(OAUTH_CALLBACK_ENDPOINT, get(axum_auth::redirect_handler))
-        .route(OAUTH_LOGIN_ENDPOINT, get(axum_auth::login_handler))
+        .route(OAUTH_CALLBACK_ENDPOINT, get(auth::redirect_handler))
+        .route(OAUTH_LOGOUT_ENDPOINT, get(auth::logout_handler))
+        .route(OAUTH_LOGIN_ENDPOINT, get(auth::login_handler))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

@@ -14,7 +14,7 @@ use reqwest::StatusCode;
 use tower_sessions::Session;
 use views::AlbumView;
 
-use crate::axum_auth::session_user;
+use crate::controllers::auth::session_user;
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_details(
