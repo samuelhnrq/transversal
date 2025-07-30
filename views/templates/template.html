@@ -3,6 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
+    <title>Transversal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300..700;1,300..700&display=swap"
+        rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta description="A simple HTML template using BeerCSS and Unpoly">
     <meta name="author" content="Your Name">
@@ -19,19 +24,18 @@
 </head>
 
 <body>
+    <script>
+        up.network.config.wrapMethod = false;
+        up.link.config.followSelectors.push('a[href]')
+        up.form.config.submitSelectors.push('form')
+    </script>
     {% block header %}
     <header class="tertiary-container small-elevate">
-        <nav>
+        <nav class="responsive">
             <button class="circle transparent">
                 <i>arrow_back</i>
             </button>
             <h6 class="max">Headline</h6>
-            <button class="circle transparent">
-                <i>attach_file</i>
-            </button>
-            <button class="circle transparent">
-                <i>today</i>
-            </button>
             <button class="circle transparent">
                 <i>more_vert</i>
             </button>
@@ -49,7 +53,6 @@
 </html>
 
 {% macro text_field(label, name, value) %}
-
 <div class="field label fill">
     <input id="{{ name }}_field_id" type="text" name="{{ name }}" value="{{ value | maybe }}" required
         autocomplete="off">
@@ -57,5 +60,4 @@
         {{ label }}
     </label>
 </div>
-
 {% endmacro %}

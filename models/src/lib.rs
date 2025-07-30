@@ -17,5 +17,5 @@ pub async fn get_database(db_url: &str) -> Result<DatabaseConnection, IOError> {
     Database::connect(db_url)
         .await
         .inspect(|_| log::info!("Connected to database"))
-        .map_err(|err| IOError::new(io::ErrorKind::Other, err))
+        .map_err(IOError::other)
 }

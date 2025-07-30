@@ -1,27 +1,81 @@
 {% extends "template.html" %}
 
 {% block content %}
-<p>This is a simple HTML template!.</p>
 
-{% if crate::is_value_set(&user.id) %}
-<h1>User Details for {{ user.username | maybe }}</h1>
-{% else %}
-<h1>New User</h1>
-{% endif %}
+<article class="border" style="height: 30vh;">
+    <div class="row">
+        <h2>Users</h2>
+        <div class="max"></div>
 
-<form method="post" action="/user" up-submit>
-    <input type="hidden" name="user_id" value="{{ user.id | maybe }}">
-    <legend>User Information</legend>
-    {% call text_field("Username", "username", user.username) %}
-    {% call text_field("Token", "token", user.token) %}
+        <a class="button circle transparent" href="/user">
+            <i>add</i>
+        </a>
+    </div>
 
-    <button type="submit">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Username</th>
+                <th>Token</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr up-follow up-href="/user/{{ user.id }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.token }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2">No users found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</article>
+
+<article>
+    <form method="post" action="/user/{{ user.id | maybe }}" id="user-form" up-submit>
+        <div class="row">
+            {% if crate::is_value_set(&user.id) %}
+            <h3>Edit user</h3>
+            {% else %}
+            <h3>New User</h3>
+            {% endif %}
+            <div class="max"></div>
+
+            <button type="reset" class="transparent circle">
+                <i>refresh</i>
+            </button>
+        </div>
+
         {% if crate::is_value_set(&user.id) %}
-        Update
-        {% else %}
-        Create
+        <input type="hidden" name="id" value="{{ user.id | maybe }}">
         {% endif %}
-    </button>
-</form>
+        <legend>User Information</legend>
+        {% call text_field("Username", "username", user.username) %}
+        {% call text_field("Token", "token", user.token) %}
+
+        <div class="row">
+            {% if crate::is_value_set(&user.id) %}
+            <a class="button tertiary" up-method="delete" href="/user/{{ user.id | maybe }}">
+                Delete
+                <i>delete</i>
+            </a>
+            {% endif %}
+            <div class="max"></div>
+            <button type="submit">
+                {% if crate::is_value_set(&user.id) %}
+                Update
+                {% else %}
+                Create
+                {% endif %}
+                <i>save</i>
+            </button>
+        </div>
+    </form>
+</article>
 
 {% endblock %}

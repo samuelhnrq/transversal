@@ -15,6 +15,7 @@ pub struct IndexPage {
 #[template(path = "user_details.html")]
 pub struct UserDetailsPage {
     pub user: user::ActiveModel,
+    pub users: Vec<user::Model>,
 }
 
 pub(crate) fn is_value_set<T: Into<Value>>(value: &ActiveValue<T>) -> bool {
