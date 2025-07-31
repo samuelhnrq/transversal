@@ -12,8 +12,9 @@ use models::{
     state::AppState,
 };
 use reqwest::StatusCode;
-use serde_json::json;
 use views::AlbumView;
+
+const ALBUM_PATH: &str = "/album";
 
 #[axum_macros::debug_handler]
 pub(crate) async fn album_details(
@@ -23,8 +24,9 @@ pub(crate) async fn album_details(
 ) -> Result<impl IntoResponse, Redirect> {
     let album = get_album_by_id(&state.db, &user, &id)
         .await
-        .map_err(|_| Redirect::to("/album"))?
-        .ok_or_else(|| Redirect::to("/album"))?;
+        .inspect_err(|err| log::error!("Failed to get album by id: {err}"))
+        .map_err(|_| Redirect::to(ALBUM_PATH))?
+        .ok_or_else(|| Redirect::to(ALBUM_PATH))?;
     Ok(AlbumView {
         album: album.into(),
         albums: list_albums(&state.db, &user).await.unwrap_or_default(),
@@ -40,6 +42,7 @@ pub(crate) async fn album_list(
     log::info!("Listing albums for user: {:?}", user.id);
     let albums = list_albums(&state.db, &user)
         .await
+        .inspect_err(|err| log::error!("Failed to list albums: {err}"))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(AlbumView {
         album: empty_album(),
@@ -54,16 +57,14 @@ pub(crate) async fn album_create(
     Extension(user): Extension<user::Model>,
     album: Result<Form<serde_json::Value>, FormRejection>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let Form(mut form) = album
+    let Form(form) = album
         .inspect_err(|err| log::error!("Failed to parse album form: {err}"))
         .map_err(|_| StatusCode::BAD_REQUEST)?;
-    log::debug!("Creating album with user: {:?}", user.id);
-    form["_created_by"] = json!(user.id.to_string());
-    create_album(&state.db, form)
+    create_album(&state.db, &user, form)
         .await
         .inspect_err(|err| log::error!("Failed to create album: {err}"))
         .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(Redirect::to("/album"))
+    Ok(Redirect::to(ALBUM_PATH))
 }
 
 #[axum_macros::debug_handler]
@@ -74,8 +75,9 @@ pub(crate) async fn album_update(
     album: Result<Form<serde_json::Value>, FormRejection>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let Form(form) = album.map_err(|_| StatusCode::BAD_REQUEST)?;
-    update_album(&state.db, &id, form)
+    update_album(&state.db, &id, &user, form)
         .await
+        .inspect_err(|err| log::error!("Failed to update album: {err}"))
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     Ok(AlbumView {
         album: empty_album(),
@@ -91,6 +93,7 @@ pub(crate) async fn album_delete(
 ) -> Result<impl IntoResponse, StatusCode> {
     delete_album(&state.db, &id)
         .await
+        .inspect_err(|err| log::error!("Failed to delete album: {err}"))
         .map_err(|_| StatusCode::NOT_FOUND)?;
-    Ok(Redirect::to("/album"))
+    Ok(Redirect::to(ALBUM_PATH))
 }

@@ -2,6 +2,13 @@
 
 Template rust application. Rust speed, SPA interactivity.
 
+
+## Local development
+
+The project provides a local docker compose file to ease to provide a offiline available Oauth2 server, keycloak (see [auth](#openid-oauth-2)).
+
+# Tech choices and architecture
+
 ## Backend & Web
 
 ### Axum
@@ -10,7 +17,7 @@ Lets start by the most simpler part, Axum is part of the tokio project, a thin l
 
 ### OpenID OAuth 2
 
-The authentication is made though an OpenID implicit PKCE flow, it receives a openid URL a client ID and secret and uses open ID discovery `.well-known` to discover the server configuration. After receiving a successful redirect, saves user data to the database and starts a session.
+The authentication system recieves a OpenID client, secret and a "issuer" URL through environment variables, and uses open ID's `.well-known` endpoint to introspect the rest of oauth endpoints. In short, almost any "social login" provider (google, github, etc) should be compatible out of the box as far as you manage to find its issuer URL a client ID and secret. Keycloak is provided as for the simplest one to containerize in a local environment.
 
 ### Monitoring & Tracing
 
@@ -18,7 +25,7 @@ Axum is part of the tokio ecosystem so has built-in support to the great tracing
 
 ### Sea Session
 
-A more simpler MVC web application allows to the yester-year of sessions, its like cookies but not as annoying or limited. In your controllers you can simply `session.get::<Struct>().await` with the glue code (Session Backend) in place to persist arbitrary JSON to DB. Its use to mainly to store auth session, but any other Serializable struct can be persisted.
+A more simpler MVC web application allows to the yester-year style of DB persisted sessions, its like cookies but not as annoying or limited. In your controllers you can simply `session.get::<SerializableStruct>().await` the glue code (Axum Session Backend impl) is already in place to persist arbitrary JSON to DB. Out of the box its mainly used to store auth session, but any other Serializable struct can be persisted.
 
 ## Frontend & Templating
 
@@ -49,7 +56,7 @@ It works great it really is a great progressive enhancement library has a great 
 
 ### Askama
 
-In brief its Jinja, but for rust, parsed and converted at compile time to embedded (in the final binary) rust code. When I was shopping for possible templating solutions I immediately excluded ones that did runtime interpolation/interpretation or anything of the sorts, they just as clunky as templating and still offer a much bigger runtime hit.
+In brief its Jinja, but for rust, parsed and converted to rust code at compile time and therefore embedded in the final binary. When I was shopping for possible templating solutions I immediately excluded ones that did runtime interpolation/interpretation or anything of the sorts, they just as clunky as Askama templating and still offer a much bigger runtime hit.
 
 Out of the pre-compiled options some were too obscure and/or crazy (see [maud](https://maud.lambda.xyz/)) Askama hit the perfect sweet spot of the battle tested Jinja syntax and blazing speed. But not without its issues
 
@@ -59,16 +66,24 @@ Out of the pre-compiled options some were too obscure and/or crazy (see [maud](h
 
    - This is the main tradeoff of Askama, if your templates become rust code when you compile it it means it will go through the infamously slow rust compiler
    - There is currently no mechanism to auto refresh, it is doable but would be a very complicated bunch of code that needed to be selectively disabled by target
+   - Askama editor tooling is very weak, altough good documentation and clear errors, still feels awkward your HTML causes rust errors you have to snipe though line numbers
 
 1. The sea-orm Active model <-> serde integration is a little awkward
 
-   - The templates receiving active models to render is a very convenient way to allow per field optional rendering but I got the wrong impression that deserializing into an active model would allow to deserialized missing fields (e.g. ID of relations which make no sense serializing)
-   - The JSON value needs to be a valid model which might mean inserting a fake ID during inserts `json_value["id"] = json!(UUID::nil().to_string())`
-   - As per FormValues HTML limitation, everything is a string, even numbers, because JSON has numbers serde refuses to auto convert string into numbers, which is sensible default and can be configured, sadly sea-orm is migration-first you generate entities from DB state, which has limited customization. I settled for something like this in the repository layer:
+   - The templates receiving active models to render is a very convenient way to allow per field optional rendering but I got the wrong impression that deserializing into an active model would allow deserialized with missing fields (e.g deserializing a newly created form without id fails)
+   - Therefore the JSON value needs a little massaging to be a valid (deserializable) model which might mean inserting a nil `id` field into the JSON value before trying to deserialize it.
+   - In the same line, given how HTML forms work everything is a string, even numeric fields, which serde-json natually refuses to auto convert given JSON has numbers, it could've been configured to deserilize anyway but sadly sea-orm is migration-first and you generate entities from DB state, which has limited customization. I settled for something like this in the repository layer:
 
    ```rust
    json_value["number_prop"] = json!(json_value["number_prop"].as_str().parse::<i32>().unwrap_or_default())
    ```
+
+## Roadmap / Wishlist
+
+- More complex frontend examples
+   - More complex Askama examples
+   - More complex Unipoly examples
+- Replace Askama with Leptos?
 
 ## FAQ
 
